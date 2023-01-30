@@ -188,14 +188,15 @@ impl Vcvars {
 
         // Note: vcvars always returns exit code 0, even if it failed (as of Dec. 2022).
 
-        if let Err(err) = output {
-            return Err(VcvarsError::CouldntRun(
-                cmd_exe_path.to_string_lossy().into_owned(),
-                err,
-            ));
-        }
-
-        let stdout = String::from_utf8_lossy(&output.as_ref().unwrap().stdout);
+        let stdout = match output {
+            Ok(ref output) => String::from_utf8_lossy(&output.stdout),
+            Err(err) => {
+                return Err(VcvarsError::CouldntRun(
+                    cmd_exe_path.to_string_lossy().into_owned(),
+                    err,
+                ));
+            }
+        };
 
         if stdout.starts_with("[ERROR:") {
             return Err(VcvarsError::VcvarsFailed(
