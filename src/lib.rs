@@ -1,7 +1,3 @@
-//! Provides access to the environment variables set by [vcvars](https://learn.microsoft.com/en-us/cpp/build/building-on-the-command-line#use-the-developer-tools-in-an-existing-command-window). Requires [Microsoft Visual Studio](https://visualstudio.microsoft.com/) to be installed.
-//!
-//! To be put in the build dependencies and used in a build script.
-
 #![allow(clippy::new_without_default)]
 
 use std::{
@@ -28,13 +24,13 @@ impl Vcvars {
     }
 
     pub fn get_cached(&mut self, var_name: &str) -> Result<Cow<str>, VcvarsError> {
-        //! Reads the `OUT_DIR` environment variable that Cargo sets and obtains `var_name`'s value from a cache file. If the file isn't present, runs vcvars and creates a memory cache of its variables, if not done previously, to source the value from and creates the cache file. Then, returns the value.
+        //! Reads the `OUT_DIR` environment variable that Cargo sets and obtains `var_name`'s value from a cache file. If the file isn't present, runs vcvars and creates a memory cache of its variables, if not done previously, to source the value from and creates the cache file. Then returns the value.
         //!
         //! The cache files are named after the variables. The filenames are sanitized to be legal on all platforms. Should this result in two variables getting the same filename, there will be incorrect behavior. (See https://github.com/chawyehsu/filenamify-rs/blob/main/src/lib.rs.)
         //!
         //! # Panics
         //!
-        //! Panics if `OUT_DIR` isn't set or doesn't represent an existing directory.
+        //! Panics if the `OUT_DIR` environment variable isn't set or doesn't represent an existing directory.
 
         // Find Cargo output directory.
         let cargo_out_dir = PathBuf::from(
@@ -55,7 +51,7 @@ impl Vcvars {
             ));
         }
 
-        // Read or prepare and write cache file.
+        // Read, or prepare and write cache file.
         let mut cache_file = cache_dir;
         cache_file.push(filenamify(format!("{var_name}.txt")));
 
@@ -82,7 +78,7 @@ impl Vcvars {
     }
 
     pub fn get(&mut self, var_name: &str) -> Result<&str, VcvarsError> {
-        //! Runs vcvars and creates a memory cache of its variables, if not done previously, and returns the `var_name`'s value.
+        //! Runs vcvars and creates a memory cache of its variables, if not done previously, and returns `var_name`'s value.
 
         match self.ensure_env_map()?.get(&var_name.to_uppercase()) {
             Some(value) => Ok(value.deref()),
@@ -147,7 +143,7 @@ impl Vcvars {
             }
         };
 
-        // Find vcvars and args.
+        // Find vcvars and determine its args.
         let mut vcvars_path = PathBuf::from(visual_studio_dir);
         vcvars_path.push("VC");
         vcvars_path.push("Auxiliary");
@@ -250,7 +246,7 @@ mod tests {
     use regex::Regex;
     use std::{env, fs, io, path::PathBuf, time::Instant};
 
-    fn version_no_regex() -> Regex {
+    fn version_number_regex() -> Regex {
         Regex::new(r"^(\d+\.)+\d+$").unwrap()
     }
 
@@ -260,7 +256,7 @@ mod tests {
 
         let start = Instant::now();
         let value = vcvars.get("VisualStudioVersion").unwrap();
-        assert!(version_no_regex().is_match(value), "{value}");
+        assert!(version_number_regex().is_match(value), "{value}");
         let initial_get_duration = start.elapsed();
 
         let start = Instant::now();
@@ -294,13 +290,13 @@ mod tests {
         let start = Instant::now();
         let mut vcvars = Vcvars::new();
         let value = vcvars.get_cached("VisualStudioVersion").unwrap();
-        assert!(version_no_regex().is_match(value.as_ref()), "{value}");
+        assert!(version_number_regex().is_match(value.as_ref()), "{value}");
         let vcvars_call_get_duration = start.elapsed();
 
         let start = Instant::now();
         let mut vcvars = Vcvars::new();
         let value = vcvars.get_cached("VisualStudioVersion").unwrap();
-        assert!(version_no_regex().is_match(value.as_ref()), "{value}");
+        assert!(version_number_regex().is_match(value.as_ref()), "{value}");
         let cache_get_duration = start.elapsed();
 
         assert!(

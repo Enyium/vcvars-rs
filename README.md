@@ -1,3 +1,9 @@
+Provides access to the environment variables set by [vcvars](https://learn.microsoft.com/en-us/cpp/build/building-on-the-command-line#use-the-developer-tools-in-an-existing-command-window). Requires [Microsoft Visual Studio](https://visualstudio.microsoft.com/) to be installed.
+
+To be put in the build dependencies and used in a build script.
+
+The author has no affiliation with Microsoft.
+
 # License
 
 Licensed under either of
