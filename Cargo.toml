@@ -14,4 +14,5 @@ itertools = "0.10.5"
 filenamify = "0.1.0"
 
 [dev-dependencies]
+serial_test = "1.0.0"
 regex = "1.7.0"

@@ -244,6 +244,7 @@ pub enum VcvarsError {
 mod tests {
     use crate::Vcvars;
     use regex::Regex;
+    use serial_test::serial;
     use std::{env, fs, io, path::PathBuf, time::Instant};
 
     fn version_number_regex() -> Regex {
@@ -251,6 +252,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn get() {
         let mut vcvars = Vcvars::new();
 
@@ -276,6 +278,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn get_cached() {
         let mut cache_dir =
             PathBuf::from(env::var("OUT_DIR").expect("env var `OUT_DIR` should be set"));
