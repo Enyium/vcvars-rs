@@ -1,3 +1,4 @@
+#![cfg(target_os = "windows")]
 #![allow(clippy::new_without_default)]
 
 use std::{
