@@ -1,9 +1,7 @@
 #![cfg(target_os = "windows")]
-#![allow(clippy::new_without_default)]
+#![warn(clippy::pedantic)]
 
-use std::{
-    borrow::Cow, collections::HashMap, env, fs, io, ops::Deref, path::PathBuf, process::Command,
-};
+use std::{borrow::Cow, collections::HashMap, env, fs, io, path::PathBuf, process::Command};
 
 use filenamify::filenamify;
 use itertools::Itertools;
@@ -21,13 +19,17 @@ impl Vcvars {
     //! Use [`std::env::split_paths()`] to split a variable like `INCLUDE`.
 
     pub fn new() -> Self {
+        #![must_use]
+        #![allow(clippy::new_without_default)]
+
         Self { env_map: None }
     }
 
     pub fn get_cached(&mut self, var_name: &str) -> Result<Cow<str>, VcvarsError> {
+        #![allow(clippy::missing_errors_doc)]
         //! Reads the `OUT_DIR` environment variable that Cargo sets and obtains `var_name`'s value from a cache file. If the file isn't present, runs vcvars and creates a memory cache of its variables, if not done previously, to source the value from and creates the cache file. Then returns the value.
         //!
-        //! The cache files are named after the variables. The filenames are sanitized to be legal on all platforms. Should this result in two variables getting the same filename, there will be incorrect behavior. (See https://github.com/chawyehsu/filenamify-rs/blob/main/src/lib.rs.)
+        //! The cache files are named after the variables. The filenames are sanitized to be legal on all platforms. Should this result in two variables getting the same filename, there will be incorrect behavior. (See <https://github.com/chawyehsu/filenamify-rs/blob/main/src/lib.rs>.)
         //!
         //! # Panics
         //!
@@ -79,10 +81,11 @@ impl Vcvars {
     }
 
     pub fn get(&mut self, var_name: &str) -> Result<&str, VcvarsError> {
+        #![allow(clippy::missing_errors_doc)]
         //! Runs vcvars and creates a memory cache of its variables, if not done previously, and returns `var_name`'s value.
 
         match self.ensure_env_map()?.get(&var_name.to_uppercase()) {
-            Some(value) => Ok(value.deref()),
+            Some(value) => Ok(value),
             None => Err(VcvarsError::VarNotFound(var_name.to_owned())),
         }
     }
@@ -97,17 +100,13 @@ impl Vcvars {
 
     fn make_env_map() -> Result<EnvMap, VcvarsError> {
         // Read env var dependencies.
-        let program_files_x86_dir = if let Ok(dir) = env::var("PROGRAMFILES(X86)") {
-            dir
-        } else {
+        let Ok(program_files_x86_dir) = env::var("PROGRAMFILES(X86)") else {
             return Err(VcvarsError::MissingEnvVarDependency(
                 "PROGRAMFILES(X86)".to_owned(),
             ));
         };
 
-        let win_dir = if let Ok(dir) = env::var("WINDIR") {
-            dir
-        } else {
+        let Ok(win_dir) = env::var("WINDIR") else {
             return Err(VcvarsError::MissingEnvVarDependency("WINDIR".to_owned()));
         };
 

@@ -1,10 +1,11 @@
 [package]
 name = "vcvars"
-version = "0.1.0"
+version = "0.1.1"
 description = "Provides access to the environment variables set by vcvars that comes with a Microsoft Visual Studio installation."
 categories = ["development-tools::build-utils"]
 keywords = ["visual-studio", "compiler", "environment", "microsoft", "windows"]
 repository = "https://github.com/Enyium/vcvars-rs"
+documentation = "https://docs.rs/vcvars/latest/x86_64-pc-windows-msvc/vcvars/index.html"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
