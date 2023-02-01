@@ -20,7 +20,7 @@ impl Vcvars {
     //!
     //! # Example
     //!
-    //! ```
+    //! ```ignore
     //! let mut vcvars = Vcvars::new();
     //! let vcvars_include = vcvars.get_cached("INCLUDE").unwrap();
     //!
@@ -111,6 +111,8 @@ impl Vcvars {
     }
 
     fn make_env_map() -> Result<EnvMap, VcvarsError> {
+        #![allow(clippy::too_many_lines)] //TODO
+
         // Read env var dependencies.
         let Ok(program_files_x86_dir) = env::var("PROGRAMFILES(X86)") else {
             return Err(VcvarsError::MissingEnvVarDependency(
@@ -120,6 +122,10 @@ impl Vcvars {
 
         let Ok(win_dir) = env::var("WINDIR") else {
             return Err(VcvarsError::MissingEnvVarDependency("WINDIR".to_owned()));
+        };
+
+        let Ok(target_arch) = env::var("CARGO_CFG_TARGET_ARCH") else {
+            return Err(VcvarsError::MissingEnvVarDependency("CARGO_CFG_TARGET_ARCH".to_owned()));
         };
 
         // Find `vswhere`.
@@ -170,11 +176,26 @@ impl Vcvars {
 
         let vcvars_path = vcvars_path.to_str().unwrap(); // Built from valid UTF-8.
 
-        let architecture = if cfg!(target_pointer_width = "64") {
-            "x64"
-        } else {
-            "x86"
-        };
+        // Note: Usage documented here: https://learn.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=msvc-170#vcvarsall-syntax.
+
+        let arch_arg = match env::consts::ARCH /* host architecture */ {
+            "x86" => match target_arch.as_str() {
+                "x86" => Some("x86"),
+                "x86_64" => Some("x86_x64"),
+                "arm" => Some("x86_arm"),
+                "aarch64" => Some("x86_arm64"),
+                _ => None,
+            },
+            "x86_64" => match target_arch.as_str() {
+                "x86" => Some("x64_x86"),       // Or `Some("x86")`? Usage table not clear.
+                "x86_64" => Some("x64"),        // Or `Some("x86_x64")`? Usage table not clear.
+                "arm" => Some("x64_arm"),       // Or `Some("x86_arm")`? Usage table not clear.
+                "aarch64" => Some("x64_arm64"), // Or `Some("x86_arm64")`? Usage table not clear.
+                _ => None,
+            },
+            _ => None,
+        }
+        .ok_or(VcvarsError::UnsupportedArch)?;
 
         // Find `cmd.exe`.
         let mut cmd_exe_path = PathBuf::from(win_dir);
@@ -192,7 +213,7 @@ impl Vcvars {
         let output = Command::new(&cmd_exe_path)
             .arg("/C")
             // Note: On the regular, interactive command line, `chcp 65001` to change the active code page to UTF-8 doesn't seem to make a difference regarding the content.
-            .args([&vcvars_path, architecture, "&&"])
+            .args([&vcvars_path, arch_arg, "&&"])
             .args([&format!("echo.{separator_line}"), "&&"])
             .arg("set") // Lists env vars.
             .output();
@@ -243,6 +264,8 @@ pub enum VcvarsError {
     MissingEnvVarDependency(String),
     #[error("couldn't find file `{0}`")]
     FileNotFound(String),
+    #[error("unsupported host or target architecture")]
+    UnsupportedArch,
     #[error("couldn't run `{0}`: {1}")]
     CouldntRun(String, io::Error),
     #[error("`vcvarsall.bat` failed: {0}")]
@@ -260,6 +283,11 @@ mod tests {
     use serial_test::serial;
     use std::{env, fs, io, path::PathBuf, time::Instant};
 
+    fn prepare() {
+        // Normally set by Cargo.
+        env::set_var("CARGO_CFG_TARGET_ARCH", env::consts::ARCH);
+    }
+
     fn version_number_regex() -> Regex {
         Regex::new(r"^(\d+\.)+\d+$").unwrap()
     }
@@ -267,6 +295,8 @@ mod tests {
     #[test]
     #[serial]
     fn get() {
+        prepare();
+
         let mut vcvars = Vcvars::new();
 
         let start = Instant::now();
@@ -293,6 +323,8 @@ mod tests {
     #[test]
     #[serial]
     fn get_cached() {
+        prepare();
+
         let mut cache_dir =
             PathBuf::from(env::var("OUT_DIR").expect("env var `OUT_DIR` should be set"));
         cache_dir.push("vcvars-cache");

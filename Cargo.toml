@@ -1,6 +1,6 @@
 [package]
 name = "vcvars"
-version = "0.1.4"
+version = "0.1.5"
 description = "Provides access to the environment variables set by vcvars that comes with a Microsoft Visual Studio installation."
 categories = ["development-tools::build-utils"]
 keywords = ["visual-studio", "compiler", "environment", "microsoft", "windows"]
