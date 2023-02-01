@@ -16,7 +16,19 @@ pub struct Vcvars {
 impl Vcvars {
     //! Runs vcvars in a `cmd.exe` child process (at most once) and makes available the set of environment variables the child process inherited, mutated by vcvars. The `cmd.exe` stdout output is converted with [`std::string::String::from_utf8_lossy()`].
     //!
-    //! Use [`std::env::split_paths()`] to split a variable like `INCLUDE`.
+    //! Use [`std::env::split_paths()`] to split a variable like `INCLUDE`, which could then, e.g., be passed to [`cc::Build::includes()`].
+    //!
+    //! # Example
+    //!
+    //! ```
+    //! let mut vcvars = Vcvars::new();
+    //! let vcvars_include = vcvars.get_cached("INCLUDE").unwrap();
+    //!
+    //! cxx_build::bridge("src/demo.rs")
+    //!     .file("src/demo.cc")
+    //!     .includes(env::split_paths(&*vcvars_include))
+    //!     .compile("demo");
+    //! ```
 
     pub fn new() -> Self {
         #![must_use]
