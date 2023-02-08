@@ -11,30 +11,53 @@ type EnvMap = HashMap<String, String>;
 
 pub struct Vcvars {
     env_map: Option<EnvMap>,
+    prerelease: bool,
 }
 
 impl Vcvars {
-    //! Runs vcvars in a `cmd.exe` child process (at most once) and makes available the set of environment variables the child process inherited, mutated by vcvars. The `cmd.exe` stdout output is converted with [`std::string::String::from_utf8_lossy()`].
-    //!
-    //! Use [`std::env::split_paths()`] to split a variable like `INCLUDE`, which could then, e.g., be passed to [`cc::Build::includes()`].
-    //!
-    //! # Example
-    //!
-    //! ```ignore
-    //! let mut vcvars = Vcvars::new();
-    //! let vcvars_include = vcvars.get_cached("INCLUDE").unwrap();
-    //!
-    //! cxx_build::bridge("src/demo.rs")
-    //!     .file("src/demo.cc")
-    //!     .includes(env::split_paths(&*vcvars_include))
-    //!     .compile("demo");
-    //! ```
-
     pub fn new() -> Self {
         #![must_use]
         #![allow(clippy::new_without_default)]
+        //! Runs vcvars in a `cmd.exe` child process (at most once) and makes available the set of environment variables the child process inherited, mutated by vcvars. The `cmd.exe` stdout output is converted with [`std::string::String::from_utf8_lossy()`].
+        //!
+        //! Use [`std::env::split_paths()`] to split a variable like `INCLUDE`, which could then, e.g., be passed to [`cc::Build::includes()`].
+        //!
+        //! # Example
+        //!
+        //! ```ignore
+        //! let mut vcvars = Vcvars::new();
+        //! let vcvars_include = vcvars.get("INCLUDE").unwrap();
+        //!
+        //! cxx_build::bridge("src/demo.rs")
+        //!     .file("src/demo.cc")
+        //!     .includes(env::split_paths(&*vcvars_include))
+        //!     .compile("demo");
+        //! ```
 
-        Self { env_map: None }
+        Self {
+            env_map: None,
+            prerelease: false,
+        }
+    }
+
+    pub fn use_vs_prerelease(mut self) -> Self {
+        #![must_use]
+        #![allow(clippy::missing_errors_doc)]
+        //! Defines to search for variables using prerelease version of Visual Studio Preview
+        //! # Example
+        //!
+        //! ```ignore
+        //! let mut vcvars = Vcvars::new().use_vs_prerelease(); // <--- HERE
+        //! let vcvars_include = vcvars.get("INCLUDE").unwrap();
+        //!
+        //! cc::bridge("src/demo.rs")
+        //!     .file("src/demo.cc")
+        //!     .includes(env::split_paths(&*vcvars_include))
+        //!     .compile("demo");
+        //! ```
+
+        self.prerelease = true;
+        self
     }
 
     pub fn get_cached(&mut self, var_name: &str) -> Result<Cow<str>, VcvarsError> {
@@ -104,13 +127,13 @@ impl Vcvars {
 
     fn ensure_env_map(&mut self) -> Result<&EnvMap, VcvarsError> {
         if self.env_map.is_none() {
-            self.env_map = Some(Self::make_env_map()?);
+            self.env_map = Some(Self::make_env_map(self)?);
         };
 
         Ok(self.env_map.as_ref().unwrap())
     }
 
-    fn make_env_map() -> Result<EnvMap, VcvarsError> {
+    fn make_env_map(&mut self) -> Result<EnvMap, VcvarsError> {
         #![allow(clippy::too_many_lines)] //TODO
 
         // Read env var dependencies.
@@ -144,7 +167,12 @@ impl Vcvars {
 
         // Find Visual Studio.
         let visual_studio_dir = match Command::new(&vswhere_path)
-            .args(["-latest", "-property", "installationPath", "-utf8"])
+            .arg(if self.prerelease {
+                "-prerelease"
+            } else {
+                "-latest"
+            })
+            .args(["-property", "installationPath", "-utf8"])
             .output()
         {
             Ok(output) => {
