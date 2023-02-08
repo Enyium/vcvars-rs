@@ -1,7 +1,7 @@
 #![cfg(target_os = "windows")]
 #![warn(clippy::pedantic)]
 
-use std::{borrow::Cow, collections::HashMap, env, fs, io, path::PathBuf, process::Command};
+use std::{borrow::Cow, collections::HashMap, env, fs, io, mem, path::PathBuf, process::Command};
 
 use filenamify::filenamify;
 use itertools::Itertools;
@@ -9,11 +9,13 @@ use thiserror::Error;
 
 type EnvMap = HashMap<String, String>;
 
-pub struct Vcvars {
+pub struct Vcvars<'a> {
     env_map: Option<EnvMap>,
+    /// Arguments to `vswhere.exe` that substitute the regular argument `-latest`.
+    vswhere_latest_substitute_args: Option<&'a [&'a str]>,
 }
 
-impl Vcvars {
+impl<'a> Vcvars<'a> {
     //! Runs vcvars in a `cmd.exe` child process (at most once) and makes available the set of environment variables the child process inherited, mutated by vcvars. The `cmd.exe` stdout output is converted with [`std::string::String::from_utf8_lossy()`].
     //!
     //! Use [`std::env::split_paths()`] to split a variable like `INCLUDE`, which could then, e.g., be passed to [`cc::Build::includes()`].
@@ -34,7 +36,26 @@ impl Vcvars {
         #![must_use]
         #![allow(clippy::new_without_default)]
 
-        Self { env_map: None }
+        Self {
+            env_map: None,
+            vswhere_latest_substitute_args: None,
+        }
+    }
+
+    pub fn not_vswhere_latest_but(mut self, substitute_args: &'a [&'a str]) -> Self {
+        #![must_use]
+        //! Microsoft's [`vswhere.exe`](https://github.com/microsoft/vswhere) that locates your Visual Studio installation is normally called with the argument `-latest`. If you need different arguments *instead of it*, you can pass them here. It may well be that there can be a better solution than calling this function that would involve the Rust `Vcvars` type to be adapted. The method is provided as a means to be able to quickly solve problems regarding `vswhere`.
+        //!
+        //! ```
+        //! let mut vcvars = Vcvars::new()
+        //!     .not_vswhere_latest_but(["-version", "[15.0,16.0)"]);
+        //! ```
+        //!
+        //! Run `vswhere -help` on the command line for more information.
+
+        self.vswhere_latest_substitute_args = Some(substitute_args);
+
+        self
     }
 
     pub fn get_cached(&mut self, var_name: &str) -> Result<Cow<str>, VcvarsError> {
@@ -95,6 +116,8 @@ impl Vcvars {
     pub fn get(&mut self, var_name: &str) -> Result<&str, VcvarsError> {
         #![allow(clippy::missing_errors_doc)]
         //! Runs vcvars and creates a memory cache of its variables, if not done previously, and returns `var_name`'s value.
+        //!
+        //! For productive use, it's recommended to use `get_cached()` instead, so follow-up build script runs are significantly sped up.
 
         match self.ensure_env_map()?.get(&var_name.to_uppercase()) {
             Some(value) => Ok(value),
@@ -104,13 +127,13 @@ impl Vcvars {
 
     fn ensure_env_map(&mut self) -> Result<&EnvMap, VcvarsError> {
         if self.env_map.is_none() {
-            self.env_map = Some(Self::make_env_map()?);
+            self.env_map = Some(Self::make_env_map(self)?);
         };
 
         Ok(self.env_map.as_ref().unwrap())
     }
 
-    fn make_env_map() -> Result<EnvMap, VcvarsError> {
+    fn make_env_map(&mut self) -> Result<EnvMap, VcvarsError> {
         #![allow(clippy::too_many_lines)] //TODO
 
         // Read env var dependencies.
@@ -144,7 +167,9 @@ impl Vcvars {
 
         // Find Visual Studio.
         let visual_studio_dir = match Command::new(&vswhere_path)
-            .args(["-latest", "-property", "installationPath", "-utf8"])
+            .arg("-prerelease") // Allow Visual Studio Preview.
+            .args(mem::take(&mut self.vswhere_latest_substitute_args).unwrap_or(&["-latest"]))
+            .args(["-property", "installationPath", "-utf8"])
             .output()
         {
             Ok(output) => {
