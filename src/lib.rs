@@ -11,7 +11,7 @@ type EnvMap = HashMap<String, String>;
 
 pub struct Vcvars {
     env_map: Option<EnvMap>,
-    prerelease: bool,
+    may_use_prerelease: bool,
 }
 
 impl Vcvars {
@@ -36,7 +36,7 @@ impl Vcvars {
 
         Self {
             env_map: None,
-            prerelease: false,
+            may_use_prerelease: false,
         }
     }
 
@@ -56,7 +56,7 @@ impl Vcvars {
         //!     .compile("demo");
         //! ```
 
-        self.prerelease = true;
+        self.may_use_prerelease = true;
         self
     }
 
@@ -133,7 +133,7 @@ impl Vcvars {
         Ok(self.env_map.as_ref().unwrap())
     }
 
-    fn make_env_map(&mut self) -> Result<EnvMap, VcvarsError> {
+    fn make_env_map(&self) -> Result<EnvMap, VcvarsError> {
         #![allow(clippy::too_many_lines)] //TODO
 
         // Read env var dependencies.
@@ -167,7 +167,7 @@ impl Vcvars {
 
         // Find Visual Studio.
         let visual_studio_dir = match Command::new(&vswhere_path)
-            .arg(if self.prerelease {
+            .arg(if self.may_use_prerelease {
                 "-prerelease"
             } else {
                 "-latest"
